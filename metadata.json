@@ -1,0 +1,5 @@
+{
+  "name": "AI Video Studio (Veo 2 Concept)",
+  "description": "A concept application for generating and editing short video clips using AI, inspired by CapCut features and utilizing Gemini API for core AI functionalities. This app simulates video generation with image generation and provides basic editing tools.",
+  "requestFramePermissions": []
+}

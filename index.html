@@ -1,0 +1,72 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AI Video Studio</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class', // or 'media'
+      theme: {
+        extend: {
+          colors: {
+            primary: {
+              DEFAULT: 'var(--color-primary, #0ea5e9)', // sky-500
+              hover: 'var(--color-primary-hover, #0284c7)', // sky-600
+              text: 'var(--color-primary-text, #ffffff)',
+            },
+            secondary: {
+              DEFAULT: 'var(--color-secondary, #334155)', // slate-700
+              hover: 'var(--color-secondary-hover, #475569)', // slate-600
+              text: 'var(--color-secondary-text, #f1f5f9)', // slate-100
+            },
+            background: 'var(--color-background, #0f172a)', // slate-900
+            surface: 'var(--color-surface, #1e293b)', // slate-800
+            'surface-alt': 'var(--color-surface-alt, #334155)', // slate-700
+            text: 'var(--color-text, #f1f5f9)', // slate-100
+            'text-muted': 'var(--color-text-muted, #94a3b8)', // slate-400
+            border: 'var(--color-border, #334155)', // slate-700
+          },
+          animation: {
+            'spin-slow': 'spin 3s linear infinite',
+          },
+        }
+      }
+    }
+  </script>
+  <style>
+    /* For custom scrollbars, optional */
+    ::-webkit-scrollbar {
+      width: 8px;
+      height: 8px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #1e293b; /* slate-800 */
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #475569; /* slate-600 */
+      border-radius: 4px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #64748b; /* slate-500 */
+    }
+  </style>
+<script type="importmap">
+{
+  "imports": {
+    "react/": "https://esm.sh/react@^19.1.0/",
+    "react": "https://esm.sh/react@^19.1.0",
+    "react-dom/": "https://esm.sh/react-dom@^19.1.0/",
+    "@google/genai": "https://esm.sh/@google/genai@^1.4.0"
+  }
+}
+</script>
+<link rel="stylesheet" href="/index.css">
+</head>
+<body class="bg-background text-text antialiased">
+  <div id="root"></div>
+  <script type="module" src="/index.tsx"></script>
+</body>
+</html>
