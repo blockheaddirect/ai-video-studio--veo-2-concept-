@@ -16,6 +16,9 @@ export interface MediaAsset {
   filename?: string; // e.g. "beach_sunset.png" or uploaded_image.jpg
   keywords?: string[];
   origin: 'generated' | 'uploaded';
+  backgroundRemovedSrc?: string;
+  relitSrc?: string;
+  enhancedQualitySrc?: string;
 }
 
 export interface StoryboardItem {
@@ -24,13 +27,18 @@ export interface StoryboardItem {
   duration: number; // Simulated duration in seconds
   textOverlays: TextOverlay[];
   filter: string | null; // CSS filter string
+  audioSrc?: string; // Stores base64 audio data URL or a link
   aiFeatures: {
     autoCaptionsText?: string;
-    textToSpeechText?: string;
+    textToSpeechText?: string; // Can store confirmation or source text
     backgroundRemoved: boolean;
-    stabilized: boolean;
+    isBackgroundRemoving?: boolean;
+    enhancedQuality: boolean; // Renamed from stabilized
+    isEnhancingQuality?: boolean;
     relit: boolean;
+    isRelighting?: boolean;
     flickerRemoved: boolean;
+    isGeneratingTTS?: boolean;
   };
 }
 
