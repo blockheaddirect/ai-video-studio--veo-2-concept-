@@ -22,7 +22,8 @@ interface SidebarProps {
   onUpdateSelectedItemFilter: (filter: string | null) => void;
   onUpdateSelectedItemAIFeature: <K extends keyof StoryboardItem['aiFeatures']>(feature: K, value: StoryboardItem['aiFeatures'][K]) => void;
   onGenerateCaptions: () => void;
-  onSimulateTTS: () => void;
+  onGenerateTTS: () => void;
+  onExportVideo: () => void;
 }
 
 const ToolButton: React.FC<{icon: React.ReactNode, label: string, isActive: boolean, onClick: () => void}> = ({ icon, label, isActive, onClick}) => (
@@ -41,7 +42,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
   activeTool, setActiveTool, onGenerateVideo, onImageUpload, isLoading,
   mediaAssets, onAddToStoryboard, onDeleteAsset, selectedItem,
   onUpdateSelectedItemText, onUpdateSelectedItemFilter, onUpdateSelectedItemAIFeature,
-  onGenerateCaptions, onSimulateTTS,
+  onGenerateCaptions,
+  onGenerateTTS,
+  onExportVideo,
 }) => {
   const [generatePrompt, setGeneratePrompt] = useState<string>('');
   const [currentTextOverlay, setCurrentTextOverlay] = useState<Partial<TextOverlay>>({ text: '', fontSize: 24, color: '#FFFFFF', fontFamily: 'Arial', position: {x: 50, y: 50}});
@@ -237,10 +240,17 @@ export const Sidebar: React.FC<SidebarProps> = ({
               onChange={e => onUpdateSelectedItemAIFeature('backgroundRemoved', e.target.checked)} />
           </div>
           <div className="flex items-center justify-between p-2 bg-slate-700 rounded">
-            <label htmlFor="stabilization" className="text-sm flex items-center"><FilmIcon className="w-5 h-5 mr-2 text-green-400"/> Video Stabilization</label>
-            <input type="checkbox" id="stabilization" className="form-checkbox h-5 w-5 text-primary rounded focus:ring-primary" 
-              checked={selectedItem.aiFeatures.stabilized}
-              onChange={e => onUpdateSelectedItemAIFeature('stabilized', e.target.checked)} />
+            <label htmlFor="enhanceQuality" className="text-sm flex items-center">
+              <SparklesIcon className="w-5 h-5 mr-2 text-cyan-400"/> AI Enhance Quality
+            </label>
+            <input
+              type="checkbox"
+              id="enhanceQuality"
+              className="form-checkbox h-5 w-5 text-primary rounded focus:ring-primary"
+              checked={selectedItem.aiFeatures.enhancedQuality}
+              disabled={selectedItem.aiFeatures.isEnhancingQuality}
+              onChange={e => onUpdateSelectedItemAIFeature('enhancedQuality', e.target.checked)}
+            />
           </div>
            <div className="flex items-center justify-between p-2 bg-slate-700 rounded">
             <label htmlFor="relight" className="text-sm flex items-center"><SparklesIcon className="w-5 h-5 mr-2 text-yellow-400"/> Relight Scene</label>
@@ -259,10 +269,21 @@ export const Sidebar: React.FC<SidebarProps> = ({
       {!selectedItem && <p className="text-sm text-text-muted">Select a scene to manage audio.</p>}
       {selectedItem && (
         <div className="space-y-3">
-           <Button onClick={onSimulateTTS} isLoading={isLoading} className="w-full justify-start" variant="ghost">
-            <SpeakerWaveIcon className="w-5 h-5 mr-2"/> Simulate Text-to-Speech (Selected Text)
+           <Button
+            onClick={onGenerateTTS}
+            isLoading={isLoading || selectedItem.aiFeatures.isGeneratingTTS}
+            disabled={!selectedItem || (!selectedItem.textOverlays.some(t => t.text.trim()) && !selectedItem.aiFeatures.autoCaptionsText?.trim()) || (selectedItem.aiFeatures.isGeneratingTTS)}
+            className="w-full justify-start"
+            variant="ghost"
+            title={selectedItem.audioSrc ? "Re-generate audio for the current text" : "Generate audio for the current text"}
+           >
+            <SpeakerWaveIcon className="w-5 h-5 mr-2"/>
+            {selectedItem.audioSrc ? "Re-generate Audio from Text" : "Generate Audio from Text"}
           </Button>
-          {selectedItem.aiFeatures.textToSpeechText && <p className="text-xs p-2 bg-slate-700 rounded">TTS Simulated: {selectedItem.aiFeatures.textToSpeechText}</p>}
+          {selectedItem.aiFeatures.textToSpeechText && !selectedItem.audioSrc && /* Show simulation text only if no real audio */ (
+            <p className="text-xs p-2 bg-slate-700 rounded">Source Text: {selectedItem.aiFeatures.textToSpeechText}</p>
+          )}
+          {/* Potentially show a message if audioSrc exists, e.g., "Audio generated." */}
         </div>
       )}
     </div>
@@ -304,6 +325,17 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 </div>
            </div>
         )}
+      </div>
+      <div className="p-4 border-t border-border">
+        <Button
+          onClick={onExportVideo}
+          isLoading={isLoading} // Assuming global isLoading can be used for export indication
+          disabled={isLoading || mediaAssets.length === 0} // Simple disable if no assets (storyboard check might be better in App.tsx)
+          className="w-full"
+          variant="success"
+        >
+          <FilmIcon className="w-5 h-5 mr-2" /> Export Video
+        </Button>
       </div>
     </div>
   );

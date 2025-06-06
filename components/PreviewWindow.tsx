@@ -9,7 +9,20 @@ interface PreviewWindowProps {
 }
 
 export const PreviewWindow: React.FC<PreviewWindowProps> = ({ selectedItem, mediaAsset }) => {
-  const assetSrc = mediaAsset?.src || DEFAULT_PLACEHOLDER_IMAGE;
+  let assetSrc = mediaAsset?.src || DEFAULT_PLACEHOLDER_IMAGE;
+
+  if (mediaAsset && selectedItem?.aiFeatures) {
+    // Precedence: Relit > Background Removed > Enhanced Quality > Original Source
+    if (selectedItem.aiFeatures.relit && mediaAsset.relitSrc) {
+      assetSrc = mediaAsset.relitSrc;
+    } else if (selectedItem.aiFeatures.backgroundRemoved && mediaAsset.backgroundRemovedSrc) {
+      assetSrc = mediaAsset.backgroundRemovedSrc;
+    } else if (selectedItem.aiFeatures.enhancedQuality && mediaAsset.enhancedQualitySrc) {
+      assetSrc = mediaAsset.enhancedQualitySrc;
+    }
+    // If no AI features with dedicated Src are active, assetSrc remains mediaAsset.src (set initially)
+  }
+
   const filterStyle = selectedItem?.filter ? { filter: selectedItem.filter } : {};
 
   const renderTextOverlay = (overlay: TextOverlay) => (
@@ -56,6 +69,9 @@ export const PreviewWindow: React.FC<PreviewWindowProps> = ({ selectedItem, medi
             {selectedItem.aiFeatures.autoCaptionsText}
           </div>
         )}
+      {selectedItem?.audioSrc && (
+        <audio src={selectedItem.audioSrc} controls autoPlay className="absolute bottom-12 left-1/2 transform -translate-x-1/2 w-3/4 md:w-1/2 opacity-80 hover:opacity-100 transition-opacity duration-300 z-10 rounded-lg shadow-lg" />
+      )}
     </div>
   );
 };

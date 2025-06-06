@@ -1,5 +1,7 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
+import { FFmpeg } from '@ffmpeg/ffmpeg';
+import { fetchFile, toBlobURL } from '@ffmpeg/util';
 import { Sidebar } from './components/Sidebar';
 import { PreviewWindow } from './components/PreviewWindow';
 import { StoryboardLane } from './components/StoryboardLane';
@@ -243,13 +245,142 @@ const App: React.FC = () => {
   ) => {
     if (selectedStoryboardItemId) {
       const currentItem = storyboard.find(item => item.id === selectedStoryboardItemId);
-      if (currentItem) {
-        updateStoryboardItem(selectedStoryboardItemId, { 
+      if (!currentItem) return;
+
+      const assetId = currentItem.assetId;
+      const mediaAsset = mediaAssets.find(asset => asset.id === assetId);
+
+      if (!mediaAsset) {
+        handleShowError("Media asset not found for AI feature.");
+        return;
+      }
+
+      // Optimistically update UI for features not requiring async calls or specific logic first
+      if (feature !== 'backgroundRemoved' && feature !== 'relit' && feature !== 'enhancedQuality') {
+        updateStoryboardItem(selectedStoryboardItemId, {
           aiFeatures: { ...currentItem.aiFeatures, [feature]: value }
         });
+        return;
+      }
+
+      if (feature === 'backgroundRemoved') {
+        if (value === true) { // backgroundRemoved is being enabled
+          updateStoryboardItem(selectedStoryboardItemId, {
+            aiFeatures: { ...currentItem.aiFeatures, backgroundRemoved: true, isBackgroundRemoving: true }
+          });
+          if (mediaAsset.backgroundRemovedSrc) { // Use existing if available
+            updateStoryboardItem(selectedStoryboardItemId, {
+              aiFeatures: { ...currentItem.aiFeatures, backgroundRemoved: true, isBackgroundRemoving: false }
+            });
+            return;
+          }
+          try {
+            const processedImageSrc = await GeminiService.removeBackgroundImage(mediaAsset.src);
+            setMediaAssets(prevAssets =>
+              prevAssets.map(asset =>
+                asset.id === assetId ? { ...asset, backgroundRemovedSrc: processedImageSrc } : asset
+              )
+            );
+            updateStoryboardItem(selectedStoryboardItemId, {
+              aiFeatures: { ...currentItem.aiFeatures, backgroundRemoved: true, isBackgroundRemoving: false }
+            });
+          } catch (error) {
+            console.error("Background removal failed:", error);
+            handleShowError(error instanceof Error ? error.message : "Failed to remove background.");
+            updateStoryboardItem(selectedStoryboardItemId, { // Revert
+              aiFeatures: { ...currentItem.aiFeatures, backgroundRemoved: false, isBackgroundRemoving: false }
+            });
+          }
+        } else { // backgroundRemoved is being disabled
+          updateStoryboardItem(selectedStoryboardItemId, {
+            aiFeatures: { ...currentItem.aiFeatures, backgroundRemoved: false, isBackgroundRemoving: false }
+          });
+        }
+      } else if (feature === 'relit') {
+        if (value === true) { // relit is being enabled
+          updateStoryboardItem(selectedStoryboardItemId, {
+            aiFeatures: { ...currentItem.aiFeatures, relit: true, isRelighting: true }
+          });
+
+          const imageSourceForRelight = (currentItem.aiFeatures.backgroundRemoved && mediaAsset.backgroundRemovedSrc)
+            ? mediaAsset.backgroundRemovedSrc
+            : mediaAsset.src;
+
+          // TODO: Add logic to check if relitSrc already exists for the *current* base image (src vs backgroundRemovedSrc)
+          // This is a simplified check, assuming we always re-generate if toggled.
+          // A more robust check would involve storing which base was used for the existing relitSrc.
+          if (mediaAsset.relitSrc && !currentItem.aiFeatures.backgroundRemoved) { // Basic check: if relitSrc exists and we are not using backgroundRemoved
+             updateStoryboardItem(selectedStoryboardItemId, {
+               aiFeatures: { ...currentItem.aiFeatures, relit: true, isRelighting: false }
+             });
+             return;
+          }
+
+          try {
+            const processedImageSrc = await GeminiService.relightImage(imageSourceForRelight);
+            setMediaAssets(prevAssets =>
+              prevAssets.map(asset =>
+                asset.id === assetId ? { ...asset, relitSrc: processedImageSrc } : asset
+              )
+            );
+            updateStoryboardItem(selectedStoryboardItemId, {
+              aiFeatures: { ...currentItem.aiFeatures, relit: true, isRelighting: false }
+            });
+          } catch (error) {
+            console.error("Relighting failed:", error);
+            handleShowError(error instanceof Error ? error.message : "Failed to relight image.");
+            updateStoryboardItem(selectedStoryboardItemId, { // Revert
+              aiFeatures: { ...currentItem.aiFeatures, relit: false, isRelighting: false }
+            });
+          }
+        } else { // relit is being disabled
+          updateStoryboardItem(selectedStoryboardItemId, {
+            aiFeatures: { ...currentItem.aiFeatures, relit: false, isRelighting: false }
+          });
+        }
+      } else if (feature === 'enhancedQuality') {
+        if (value === true) {
+          updateStoryboardItem(selectedStoryboardItemId, {
+            aiFeatures: { ...currentItem.aiFeatures, enhancedQuality: true, isEnhancingQuality: true }
+          });
+          if (mediaAsset.enhancedQualitySrc) { // Use existing if available
+            updateStoryboardItem(selectedStoryboardItemId, {
+              aiFeatures: { ...currentItem.aiFeatures, enhancedQuality: true, isEnhancingQuality: false }
+            });
+            return;
+          }
+          try {
+            // Enhance quality should always use the original source image
+            const processedImageSrc = await GeminiService.enhanceImageQuality(mediaAsset.src);
+            setMediaAssets(prevAssets =>
+              prevAssets.map(asset =>
+                asset.id === assetId ? { ...asset, enhancedQualitySrc: processedImageSrc } : asset
+              )
+            );
+            updateStoryboardItem(selectedStoryboardItemId, {
+              aiFeatures: { ...currentItem.aiFeatures, enhancedQuality: true, isEnhancingQuality: false }
+            });
+            // Note: If other features like relit or backgroundRemoved were active,
+            // their results might now be visually inconsistent as they were based on the non-enhanced source.
+            // A more advanced implementation might clear other AI-generated srcs or re-trigger their processing.
+            // For this subtask, we are keeping it simple: enhance works on original src.
+          } catch (error) {
+            console.error("Enhance quality failed:", error);
+            handleShowError(error instanceof Error ? error.message : "Failed to enhance image quality.");
+            updateStoryboardItem(selectedStoryboardItemId, { // Revert
+              aiFeatures: { ...currentItem.aiFeatures, enhancedQuality: false, isEnhancingQuality: false }
+            });
+          }
+        } else { // enhancedQuality is being disabled
+          updateStoryboardItem(selectedStoryboardItemId, {
+            aiFeatures: { ...currentItem.aiFeatures, enhancedQuality: false, isEnhancingQuality: false }
+          });
+          // Note: Similar to above, if other effects were based on the enhanced version,
+          // they ideally should be cleared or re-processed.
+        }
       }
     }
-  }, [selectedStoryboardItemId, storyboard, updateStoryboardItem]);
+  }, [selectedStoryboardItemId, storyboard, mediaAssets, updateStoryboardItem, handleShowError]);
 
   const handleGenerateCaptions = useCallback(async () => {
     if (!selectedStoryboardItemId) return;
@@ -274,35 +405,197 @@ const App: React.FC = () => {
     }
   }, [selectedStoryboardItemId, storyboard, mediaAssets, handleUpdateSelectedItemAIFeature]);
 
-  const handleSimulateTTS = useCallback(async () => {
+  const handleGenerateTTS = useCallback(async () => {
     if (!selectedStoryboardItemId) return;
-     const currentItem = storyboard.find(item => item.id === selectedStoryboardItemId);
-     if (!currentItem) return;
+    const currentItem = storyboard.find(item => item.id === selectedStoryboardItemId);
+    if (!currentItem) return;
 
-    const textToSpeak = currentItem.textOverlays.length > 0 
-      ? currentItem.textOverlays[0].text 
-      : "This scene has no text overlays to read.";
-
-    if (!textToSpeak.trim()) {
-        handleShowError("No text available in the selected scene for Text-to-Speech.");
-        return;
+    let textToSpeak = currentItem.textOverlays.map(t => t.text).join(' ');
+    if (!textToSpeak.trim() && currentItem.aiFeatures.autoCaptionsText) {
+      textToSpeak = currentItem.aiFeatures.autoCaptionsText;
     }
 
-    setIsLoading(true);
-    setLoadingMessage("Simulating Text-to-Speech...");
+    if (!textToSpeak.trim()) {
+      handleShowError("No text available in the selected scene for Text-to-Speech.");
+      return;
+    }
+
+    updateStoryboardItem(selectedStoryboardItemId, {
+      aiFeatures: { ...currentItem.aiFeatures, isGeneratingTTS: true, textToSpeechText: textToSpeak } // Store source text
+    });
+    setIsLoading(true); // Use global loading for now
+    setLoadingMessage("Generating audio...");
     setErrorMessage(null);
+
     try {
-      const ttsConfirmation = await GeminiService.simulateTextToSpeech(textToSpeak);
-      handleUpdateSelectedItemAIFeature('textToSpeechText', ttsConfirmation);
+      const audioDataUrl = await GeminiService.generateSpeechAudio(textToSpeak);
+      updateStoryboardItem(selectedStoryboardItemId, {
+        audioSrc: audioDataUrl,
+        aiFeatures: { ...currentItem.aiFeatures, isGeneratingTTS: false, textToSpeechText: textToSpeak } // Persist source text
+      });
     } catch (error) {
-       console.error("TTS simulation failed:", error);
-       handleShowError("Failed to simulate Text-to-Speech.");
+      console.error("TTS generation failed:", error);
+      handleShowError(error instanceof Error ? error.message : "Failed to generate audio.");
+      updateStoryboardItem(selectedStoryboardItemId, { // Revert on failure
+        aiFeatures: { ...currentItem.aiFeatures, isGeneratingTTS: false }
+      });
     } finally {
       setIsLoading(false);
       setLoadingMessage(null);
     }
-  }, [selectedStoryboardItemId, storyboard, handleUpdateSelectedItemAIFeature]);
+  }, [selectedStoryboardItemId, storyboard, updateStoryboardItem, handleShowError]);
 
+  const handleExportVideo = async () => {
+    if (storyboard.length === 0) {
+      handleShowError("Storyboard is empty. Add some scenes to export.");
+      return;
+    }
+    setIsLoading(true);
+    setLoadingMessage("Initializing video export...");
+    setErrorMessage(null);
+
+    const ffmpeg = new FFmpeg();
+
+    ffmpeg.on('log', ({ message }) => {
+      // console.log(message); // Optional: for more detailed logs
+      // Try to extract progress percentage if available
+      const progressMatch = message.match(/time=(\d{2}:\d{2}:\d{2}\.\d{2})/);
+      if (progressMatch && progressMatch[1]) {
+        // This is a simple way to show activity, not a true percentage
+        setLoadingMessage(`Exporting video... Processing time: ${progressMatch[1]}`);
+      }
+    });
+
+    try {
+      const baseURL = 'https://unpkg.com/@ffmpeg/core-mt@0.12.6/dist/esm';
+      await ffmpeg.load({
+        coreURL: await toBlobURL(`${baseURL}/ffmpeg-core.js`, 'text/javascript'),
+        wasmURL: await toBlobURL(`${baseURL}/ffmpeg-core.wasm`, 'application/wasm'),
+        workerURL: await toBlobURL(`${baseURL}/ffmpeg-core.worker.js`, 'text/javascript'),
+      });
+
+      setLoadingMessage("Preparing video assets...");
+      const inputFiles: string[] = [];
+      const filterComplexParts: string[] = [];
+      const concatInputs: string[] = [];
+      let hasAudioOverall = false;
+
+      for (let i = 0; i < storyboard.length; i++) {
+        const item = storyboard[i];
+        const asset = mediaAssets.find(a => a.id === item.assetId);
+        if (!asset) continue;
+
+        let imageSrc = asset.src;
+        if (item.aiFeatures.relit && asset.relitSrc) {
+          imageSrc = asset.relitSrc;
+        } else if (item.aiFeatures.backgroundRemoved && asset.backgroundRemovedSrc) {
+          imageSrc = asset.backgroundRemovedSrc;
+        }
+
+        const imageFileName = `img${i}.png`; // Assuming PNG for simplicity, could be dynamic
+        await ffmpeg.writeFile(imageFileName, await fetchFile(imageSrc));
+        inputFiles.push('-i', imageFileName);
+
+        // Video part for filter_complex
+        // Ensures each image is displayed for its specific duration.
+        // Scale to a common resolution e.g. 1280x720, use sar for aspect ratio.
+        // Force fps to ensure smooth concat.
+        filterComplexParts.push(`[${i}:v]scale=1280:720:force_original_aspect_ratio=decrease,pad=1280:720:(ow-iw)/2:(oh-ih)/2,setsar=1,fps=25,trim=duration=${item.duration}[v${i}];`);
+
+        if (item.audioSrc) {
+          const audioFileName = `audio${i}.wav`; // Assuming WAV from TTS
+          await ffmpeg.writeFile(audioFileName, await fetchFile(item.audioSrc));
+          inputFiles.push('-i', audioFileName);
+          // If audio is shorter than video, loop it. If longer, it will be cut by concat.
+          // This part is tricky. A simpler approach might be to just map it and let concat handle duration.
+          // For now, let's assume concat handles it or audio is shorter/equal to video duration.
+          concatInputs.push(`[v${i}][${storyboard.length + inputFiles.filter(f => f.startsWith('audio')).length -1 }:a]`);
+          hasAudioOverall = true;
+        } else {
+          // If no audio for this segment, use anullsrc for concat
+          concatInputs.push(`[v${i}][anull${i}]`);
+          filterComplexParts.push(`anullsrc=channel_layout=stereo:sample_rate=44100[anull${i}];`);
+        }
+      }
+
+      if (storyboard.length === 0) {
+        handleShowError("No valid items in storyboard to export.");
+        setIsLoading(false);
+        return;
+      }
+
+      const filterComplexCommand = filterComplexParts.join('') + concatInputs.join('') + `concat=n=${storyboard.length}:v=1:a=1[outv][outa]`;
+
+      const commandArgs = [
+        ...inputFiles,
+        '-filter_complex', filterComplexCommand,
+        '-map', '[outv]',
+      ];
+
+      if (hasAudioOverall) {
+        commandArgs.push('-map', '[outa]', '-c:a', 'aac', '-b:a', '192k');
+      } else {
+        // If no audio at all, FFmpeg might complain if -map "[outa]" is used without a source for it.
+        // However, our anullsrc should provide silent audio tracks.
+         commandArgs.push('-map', '[outa]', '-c:a', 'aac', '-b:a', '192k'); // Still map outa, anullsrc provides silent stream
+      }
+
+      commandArgs.push(
+        '-c:v', 'libx264',
+        '-preset', 'ultrafast',
+        '-pix_fmt', 'yuv420p',
+        'output.mp4'
+      );
+
+      setLoadingMessage("Transcoding video... This may take a while.");
+      console.log("FFmpeg command:", commandArgs.join(' ')); // For debugging
+      await ffmpeg.exec(...commandArgs);
+
+      setLoadingMessage("Finalizing video...");
+      const data = await ffmpeg.readFile('output.mp4');
+
+      const blob = new Blob([(data as Uint8Array).buffer], { type: 'video/mp4' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'ai_video_export.mp4';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+
+      setLoadingMessage("Video export complete!");
+
+      // Cleanup
+      for(let i = 0; i< storyboard.length; i++) {
+        try {
+          await ffmpeg.deleteFile(`img${i}.png`);
+          if(storyboard[i].audioSrc) await ffmpeg.deleteFile(`audio${i}.wav`);
+        } catch (e) { console.warn("Error deleting temp file", e); }
+      }
+      await ffmpeg.deleteFile('output.mp4');
+
+
+    } catch (error) {
+      console.error("Export failed:", error);
+      handleShowError(`Export failed: ${error instanceof Error ? error.message : String(error)}`);
+    } finally {
+      if (ffmpeg.loaded) {
+         // ffmpeg.terminate(); // Consider if you want to terminate or keep loaded for next export
+      }
+      setIsLoading(false);
+      setLoadingMessage(null);
+    }
+  };
+
+  const handleMoveStoryboardItem = (startIndex: number, endIndex: number) => {
+    setStoryboard(prevStoryboard => {
+      const newStoryboard = Array.from(prevStoryboard);
+      const [movedItem] = newStoryboard.splice(startIndex, 1);
+      newStoryboard.splice(endIndex, 0, movedItem);
+      return newStoryboard;
+    });
+  };
 
   const currentSelectedItem = storyboard.find(item => item.id === selectedStoryboardItemId);
   const currentMediaAsset = mediaAssets.find(asset => asset.id === currentSelectedItem?.assetId);
@@ -323,7 +616,8 @@ const App: React.FC = () => {
         onUpdateSelectedItemFilter={handleUpdateSelectedItemFilter}
         onUpdateSelectedItemAIFeature={handleUpdateSelectedItemAIFeature}
         onGenerateCaptions={handleGenerateCaptions}
-        onSimulateTTS={handleSimulateTTS}
+        onGenerateTTS={handleGenerateTTS}
+        onExportVideo={handleExportVideo}
       />
       <main className="flex-1 flex flex-col p-6 space-y-4 overflow-y-auto relative">
         {isLoading && loadingMessage && (
@@ -351,7 +645,7 @@ const App: React.FC = () => {
               selectedItemId={selectedStoryboardItemId}
               onSelectItem={setSelectedStoryboardItemId}
               onRemoveItem={handleRemoveFromStoryboard}
-              onMoveItem={() => {}} 
+              onMoveItem={handleMoveStoryboardItem}
             />
         </div>
       </main>
