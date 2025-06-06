@@ -1,13 +1,12 @@
-
 import React, { useState, useEffect, useCallback } from 'react';
 import { FFmpeg } from '@ffmpeg/ffmpeg';
 import { fetchFile, toBlobURL } from '@ffmpeg/util';
-import { Sidebar } from './components/Sidebar';
-import { PreviewWindow } from './components/PreviewWindow';
-import { StoryboardLane } from './components/StoryboardLane';
+import { Sidebar } from './client/components/Sidebar';
+import { PreviewWindow } from './client/components/PreviewWindow';
+import { StoryboardLane } from './client/components/StoryboardLane';
 import { MediaAsset, StoryboardItem, TextOverlay, ActiveTool } from './types';
-import * as GeminiService from './services/geminiService';
-import { LoadingSpinner } from './components/LoadingSpinner';
+import * as GeminiService from './shared/services/geminiService';
+import { LoadingSpinner } from './client/components/LoadingSpinner';
 import { DEFAULT_PLACEHOLDER_IMAGE, FilmIcon } from './constants'; // Added FilmIcon
 
 const generateId = () => Date.now().toString(36) + Math.random().toString(36).substring(2);
@@ -239,7 +238,7 @@ const App: React.FC = () => {
     }
   }, [selectedStoryboardItemId, updateStoryboardItem]);
 
-  const handleUpdateSelectedItemAIFeature = useCallback(<K extends keyof StoryboardItem['aiFeatures']>(
+  const handleUpdateSelectedItemAIFeature = useCallback(async <K extends keyof StoryboardItem['aiFeatures']>(
     feature: K, 
     value: StoryboardItem['aiFeatures'][K]
   ) => {
@@ -281,15 +280,8 @@ const App: React.FC = () => {
                 asset.id === assetId ? { ...asset, backgroundRemovedSrc: processedImageSrc } : asset
               )
             );
-            updateStoryboardItem(selectedStoryboardItemId, {
-              aiFeatures: { ...currentItem.aiFeatures, backgroundRemoved: true, isBackgroundRemoving: false }
-            });
           } catch (error) {
-            console.error("Background removal failed:", error);
-            handleShowError(error instanceof Error ? error.message : "Failed to remove background.");
-            updateStoryboardItem(selectedStoryboardItemId, { // Revert
-              aiFeatures: { ...currentItem.aiFeatures, backgroundRemoved: false, isBackgroundRemoving: false }
-            });
+            handleShowError("Failed to remove background.");
           }
         } else { // backgroundRemoved is being disabled
           updateStoryboardItem(selectedStoryboardItemId, {
@@ -656,6 +648,50 @@ const App: React.FC = () => {
       )}
     </div>
   );
+};
+
+export const handleShowError = (message: string, setErrorMessage: React.Dispatch<React.SetStateAction<string | null>>) => {
+  setErrorMessage(message);
+  setTimeout(() => setErrorMessage(null), 7000);
+};
+
+export const updateCurrentTopic = (storyboard: StoryboardItem[], mediaAssets: MediaAsset[], setCurrentTopic: React.Dispatch<React.SetStateAction<string | null>>) => {
+  if (storyboard.length === 0) {
+    setCurrentTopic("General");
+    return;
+  }
+
+  const allKeywords: string[] = [];
+  storyboard.forEach(item => {
+    const asset = mediaAssets.find(a => a.id === item.assetId);
+    if (asset && asset.keywords) {
+      allKeywords.push(...asset.keywords);
+    }
+  });
+
+  if (allKeywords.length === 0 && mediaAssets.some(ma => ma.origin === 'generated' && storyboard.some(si => si.assetId === ma.id))) {
+    setCurrentTopic("AI Generated Theme");
+    return;
+  }
+  if (allKeywords.length === 0) {
+    setCurrentTopic("Mixed Media");
+    return;
+  }
+
+  const keywordFrequencies: Record<string, number> = {};
+  allKeywords.forEach(keyword => {
+    keywordFrequencies[keyword] = (keywordFrequencies[keyword] || 0) + 1;
+  });
+
+  const sortedKeywords = Object.entries(keywordFrequencies)
+    .sort(([,a], [,b]) => b - a)
+    .map(([keyword]) => keyword);
+
+  if (sortedKeywords.length > 0) {
+    setCurrentTopic(sortedKeywords.slice(0, 2).join(', '));
+  } else {
+    setCurrentTopic("User Uploaded Theme");
+  }
 };
 
 export default App;

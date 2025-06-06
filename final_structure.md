@@ -1,0 +1,53 @@
+# Final Directory Structure
+
+```
+config/
+	jest.config.js
+	tsconfig.json
+	vite.config.ts
+	metadata.json
+	package.json
+	README.md
+src/
+	App.tsx
+	constants.tsx
+	index.html
+	index.tsx
+	types.ts
+	__test__/
+		tests/
+			logs/
+				README.md
+			tests/
+				ffmpegService.test.ts
+				geminiService.test.ts
+				generateId.test.ts
+				handleShowError.test.ts
+				README.md
+				updateCurrentTopic.test.ts
+	backend/
+		README.md
+	client/
+		contexts/
+			hooks/
+				useAIFeatures.ts
+				useSidebarActions.ts
+		components/
+			Button.tsx
+			LoadingSpinner.tsx
+			MediaBin.tsx
+			Modal.tsx
+			PreviewWindow.tsx
+			Sidebar.tsx
+			StoryboardLane.tsx
+	logs/
+		README.md
+	services/
+		ffmpegService.ts
+		geminiService.ts
+	shared/
+		README.md
+		services/
+	utils/
+		errorHandler.ts
+```

@@ -1,4 +1,3 @@
-
 import { GoogleGenAI, GenerateContentResponse } from "@google/genai";
 
 const API_KEY = process.env.API_KEY;
@@ -19,33 +18,37 @@ export const generateText = async (prompt: string, systemInstruction?: string): 
       model: TEXT_MODEL_NAME,
       contents: prompt,
       config: {
-        ...(systemInstruction && { systemInstruction }),
-      }
+        systemInstruction,
+      },
     });
-    return response.text;
+
+    if (!response.text) {
+      throw new Error("Response text is undefined.");
+    }
+
+    return response.text.trim();
   } catch (error) {
-    console.error("Error generating text from Gemini:", error);
+    console.error("Error generating text:", error);
     throw error;
   }
 };
 
-export const generateImage = async (prompt: string): Promise<string> => {
+export const generateImages = async (prompt: string): Promise<string> => {
   if (!API_KEY) return Promise.reject("API Key not configured for Gemini Service.");
   try {
     const response = await ai.models.generateImages({
       model: IMAGE_MODEL_NAME,
-      prompt: prompt,
-      config: { numberOfImages: 1, outputMimeType: 'image/png' },
+      prompt,
     });
-    
-    if (response.generatedImages && response.generatedImages.length > 0) {
-      const base64ImageBytes: string = response.generatedImages[0].image.imageBytes;
-      return `data:image/png;base64,${base64ImageBytes}`;
-    } else {
-      throw new Error("No image generated or empty response from API.");
+
+    if (!response.generatedImages || !response.generatedImages[0]?.image?.imageBytes) {
+      throw new Error("Generated image bytes are undefined.");
     }
+
+    const base64ImageBytes: string = response.generatedImages[0].image.imageBytes;
+    return base64ImageBytes;
   } catch (error) {
-    console.error("Error generating image from Gemini:", error);
+    console.error("Error generating image:", error);
     throw error;
   }
 };
@@ -130,7 +133,7 @@ Example: if the input describes a character walking into a room and then talking
         const keys = Object.keys(subPrompts as object);
         if (keys.length === 1 && Array.isArray((subPrompts as any)[keys[0]])) {
             const potentialArray = (subPrompts as any)[keys[0]];
-            if (potentialArray.every(s => typeof s === 'string')) {
+            if (potentialArray.every((s: unknown) => typeof s === 'string')) {
                 return potentialArray;
             }
         }
@@ -375,3 +378,11 @@ export const relightImage = async (imageDataUrl: string): Promise<string> => {
     return imageDataUrl;
   }
 };
+
+export async function analyzeMedia(media: { id: string; type: string; url: string }): Promise<{ insights: string }> {
+  if (media.type !== 'image') {
+    throw new Error('Unsupported media type');
+  }
+  // Simulate analysis
+  return { insights: 'Sample insights' };
+}
