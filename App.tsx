@@ -9,7 +9,7 @@ import * as GeminiService from './shared/services/geminiService';
 import { LoadingSpinner } from './client/components/LoadingSpinner';
 import { DEFAULT_PLACEHOLDER_IMAGE, FilmIcon } from './constants'; // Added FilmIcon
 
-const generateId = () => Date.now().toString(36) + Math.random().toString(36).substring(2);
+export const generateId = () => Date.now().toString(36) + Math.random().toString(36).substring(2);
 
 const App: React.FC = () => {
   const [mediaAssets, setMediaAssets] = useState<MediaAsset[]>([]);
@@ -650,12 +650,19 @@ const App: React.FC = () => {
   );
 };
 
-export const handleShowError = (message: string, setErrorMessage: React.Dispatch<React.SetStateAction<string | null>>) => {
+export const handleShowError = (
+  message: string,
+  setErrorMessage: React.Dispatch<React.SetStateAction<string | null>>
+) => {
   setErrorMessage(message);
   setTimeout(() => setErrorMessage(null), 7000);
 };
 
-export const updateCurrentTopic = (storyboard: StoryboardItem[], mediaAssets: MediaAsset[], setCurrentTopic: React.Dispatch<React.SetStateAction<string | null>>) => {
+export const updateCurrentTopic = (
+  storyboard: StoryboardItem[],
+  mediaAssets: MediaAsset[],
+  setCurrentTopic: React.Dispatch<React.SetStateAction<string | null>>
+) => {
   if (storyboard.length === 0) {
     setCurrentTopic("General");
     return;
@@ -670,13 +677,14 @@ export const updateCurrentTopic = (storyboard: StoryboardItem[], mediaAssets: Me
   });
 
   if (allKeywords.length === 0 && mediaAssets.some(ma => ma.origin === 'generated' && storyboard.some(si => si.assetId === ma.id))) {
-    setCurrentTopic("AI Generated Theme");
-    return;
+      setCurrentTopic("AI Generated Theme");
+      return;
   }
   if (allKeywords.length === 0) {
-    setCurrentTopic("Mixed Media");
-    return;
+      setCurrentTopic("Mixed Media");
+      return;
   }
+
 
   const keywordFrequencies: Record<string, number> = {};
   allKeywords.forEach(keyword => {
@@ -688,10 +696,9 @@ export const updateCurrentTopic = (storyboard: StoryboardItem[], mediaAssets: Me
     .map(([keyword]) => keyword);
 
   if (sortedKeywords.length > 0) {
+    // Take top 1-2 keywords to represent topic
     setCurrentTopic(sortedKeywords.slice(0, 2).join(', '));
   } else {
-    setCurrentTopic("User Uploaded Theme");
+    setCurrentTopic("User Uploaded Theme"); // Fallback if storyboard has items but no keywords
   }
 };
-
-export default App;

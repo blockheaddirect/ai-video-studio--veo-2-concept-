@@ -41,3 +41,13 @@ export const reportError = async (error: Error): Promise<void> => {
   // Simulate reporting error to an external monitoring service
   console.log('Reporting error:', error);
 };
+
+export const simulateErrorReporting = async (error: Error): Promise<string> => {
+  // Simulate sending error details to an external service
+  console.log('Simulating error reporting:', error);
+  return 'Error reported successfully';
+};
+
+export const generateId = (): string => {
+  return Math.random().toString(36).substr(2, 9);
+};
